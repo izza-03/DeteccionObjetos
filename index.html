@@ -4,6 +4,7 @@
 <head>
 
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>ESCANEO IA</title>
@@ -19,24 +20,18 @@
 <h1>ESCANEO tiempo real</h1>
 
 
-<div class="contenedor">
+<div class="visor">
 
 
-    <div class="visor">
+    <video 
+        id="video"
+        autoplay
+        playsinline
+        muted>
+    </video>
 
 
-        <video 
-            id="video"
-            autoplay
-            playsinline
-            muted>
-        </video>
-
-
-        <canvas id="canvas"></canvas>
-
-
-    </div>
+    <canvas id="canvas"></canvas>
 
 
 </div>
@@ -44,12 +39,21 @@
 
 
 <p id="estado">
-Conectando...
+Iniciando...
 </p>
 
 
+
+
+<!-- ONNX Runtime Web -->
+
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+
+<!-- Tu código -->
+
 <script src="script.js"></script>
+
 
 
 </body>
