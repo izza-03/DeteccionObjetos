@@ -2,7 +2,8 @@
 // CAMBIA ESTA URL POR LA DE TU BACKEND
 // ==========================================
 
-const WS_URL = "ws://127.0.0.1:8000/camara";
+const WS_URL = "wss://escaneo-backend.onrender.com/camara";
+
 
 
 // ==========================================
