@@ -1,104 +1,177 @@
 // ==========================================
-// CAMBIA ESTA URL POR LA DE TU BACKEND
+// BACKEND RENDER WEBSOCKET
 // ==========================================
 
-const WS_URL = "wss://escaneo-backend.onrender.com/camara";
+const WS_URL = "wss://deteccion-objetos.onrender.com/camara";
 
 
-
+// ==========================================
+// ELEMENTOS HTML
 // ==========================================
 
 const video = document.getElementById("video");
-
 const resultado = document.getElementById("resultado");
-
 const estado = document.getElementById("estado");
 
 const canvas = document.createElement("canvas");
-
 const ctx = canvas.getContext("2d");
 
-let ws;
+let ws = null;
 
-//--------------------------------------------
+
+// ==========================================
+// ACTIVAR CAMARA DEL TELEFONO / LAPTOP
+// ==========================================
 
 async function iniciarCamara(){
 
     try{
 
+        console.log("Solicitando cámara...");
+
         const stream = await navigator.mediaDevices.getUserMedia({
 
             video:{
-                facingMode:"environment"
+                facingMode:{
+                    ideal:"environment"
+                },
+                width:{
+                    ideal:640
+                },
+                height:{
+                    ideal:480
+                }
             },
 
             audio:false
 
         });
 
+
         video.srcObject = stream;
+
+        console.log(" Cámara activada");
 
     }
 
     catch(e){
 
-        estado.innerHTML="No se pudo abrir la cámara.";
+        console.error(" Error cámara:", e);
 
-        console.error(e);
+        estado.innerHTML = "No se pudo abrir la cámara";
 
     }
 
 }
 
-//--------------------------------------------
+
+// ==========================================
+// CONECTAR WEBSOCKET
+// ==========================================
 
 function conectar(){
 
+    console.log("Conectando a:", WS_URL);
+
+
     ws = new WebSocket(WS_URL);
 
-    ws.onopen=()=>{
 
-        estado.innerHTML="Conectado";
+    ws.onopen = ()=>{
+
+        console.log("✅ WebSocket conectado");
+
+        estado.innerHTML = "Conectado";
 
         enviarFrames();
 
     };
 
-    ws.onclose=()=>{
 
-        estado.innerHTML="Reconectando...";
+    ws.onmessage = (event)=>{
 
-        setTimeout(conectar,2000);
+        try{
 
-    };
+            const data = JSON.parse(event.data);
 
-    ws.onerror=(e)=>{
 
-        console.log(e);
+            if(data.imagen){
 
-    };
+                resultado.src =
+                "data:image/jpeg;base64," + data.imagen;
 
-    ws.onmessage=(event)=>{
+            }
 
-        const data = JSON.parse(event.data);
 
-        if(data.imagen){
+            if(data.detecciones){
 
-            resultado.src="data:image/jpeg;base64,"+data.imagen;
+                console.log(
+                    "Detecciones:",
+                    data.detecciones
+                );
+
+            }
+
+        }
+
+        catch(e){
+
+            console.error(
+                "Error procesando respuesta:",
+                e
+            );
 
         }
 
     };
 
+
+    ws.onerror = (error)=>{
+
+        console.error(
+            " Error WebSocket:",
+            error
+        );
+
+    };
+
+
+    ws.onclose = ()=>{
+
+        console.log(
+            " WebSocket cerrado. Reintentando..."
+        );
+
+        estado.innerHTML="Reconectando...";
+
+
+        setTimeout(()=>{
+
+            conectar();
+
+        },3000);
+
+    };
+
 }
 
-//--------------------------------------------
+
+// ==========================================
+// ENVIAR FRAMES AL MODELO
+// ==========================================
 
 async function enviarFrames(){
 
-    while(ws.readyState===1){
 
-        if(video.videoWidth===0){
+    console.log(
+        "Comenzando envío de imágenes..."
+    );
+
+
+    while(ws && ws.readyState === WebSocket.OPEN){
+
+
+        if(video.videoWidth === 0){
 
             await dormir(100);
 
@@ -106,25 +179,36 @@ async function enviarFrames(){
 
         }
 
-        canvas.width=640;
 
-        canvas.height=480;
+        canvas.width = 640;
+        canvas.height = 480;
 
-        ctx.drawImage(video,0,0,640,480);
+
+        ctx.drawImage(
+            video,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
 
         const imagen = canvas
-
-            .toDataURL("image/jpeg",0.7)
-
+            .toDataURL(
+                "image/jpeg",
+                0.7
+            )
             .split(",")[1];
+
 
         ws.send(JSON.stringify({
 
-            imagen:imagen,
+            imagen: imagen,
 
             umbral:0.55
 
         }));
+
 
         await dormir(120);
 
@@ -132,15 +216,23 @@ async function enviarFrames(){
 
 }
 
-//--------------------------------------------
+
+// ==========================================
+// ESPERA
+// ==========================================
 
 function dormir(ms){
 
-    return new Promise(resolve=>setTimeout(resolve,ms));
+    return new Promise(
+        resolve=>setTimeout(resolve,ms)
+    );
 
 }
 
-//--------------------------------------------
+
+// ==========================================
+// INICIO
+// ==========================================
 
 (async()=>{
 
