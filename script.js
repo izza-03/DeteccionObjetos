@@ -1,261 +1,364 @@
-// =======================================
-// URL DEL BACKEND EN RENDER
-// =======================================
-
-const WS_URL = "wss://deteccion-objetos.onrender.com/camara";
+const WS_URL =
+"wss://deteccion-objetos.onrender.com/camara";
 
 
-// =======================================
 
-const video = document.getElementById("video");
-
-const resultado = document.getElementById("resultado");
-
-const estado = document.getElementById("estado");
+const video =
+document.getElementById("video");
 
 
-const canvas = document.createElement("canvas");
+const canvas =
+document.getElementById("canvas");
 
-const ctx = canvas.getContext("2d");
+
+const ctx =
+canvas.getContext("2d");
+
+
+const estado =
+document.getElementById("estado");
+
 
 
 let ws;
 
 
-// =======================================
-// INICIAR CAMARA
-// =======================================
+
+const captura =
+document.createElement("canvas");
+
+
+const capturaCtx =
+captura.getContext("2d");
+
+
+
+
+// ===============================
+// CAMARA
+// ===============================
+
 
 async function iniciarCamara(){
 
-    try{
+
+try{
 
 
-        const stream = await navigator.mediaDevices.getUserMedia({
+const stream =
+await navigator.mediaDevices.getUserMedia({
 
-            video:{
+video:{
 
-                facingMode:"environment"
+facingMode:{
+ideal:"environment"
+},
 
-            },
+width:{
+ideal:640
+},
 
-            audio:false
+height:{
+ideal:480
+}
 
-        });
+},
+
+audio:false
+
+});
 
 
-        video.srcObject = stream;
+
+video.srcObject=stream;
 
 
-        console.log("Camara iniciada");
+
+video.onloadedmetadata=()=>{
 
 
-    }
+canvas.width=
+video.videoWidth;
 
-    catch(error){
 
-        console.error(error);
+canvas.height=
+video.videoHeight;
 
-        estado.innerHTML="Error al abrir cámara";
 
-    }
+captura.width=
+video.videoWidth;
+
+
+captura.height=
+video.videoHeight;
+
+
+};
+
+
+
+estado.innerHTML="Cámara activa";
+
+
+}
+
+
+catch(e){
+
+
+console.error(e);
+
+estado.innerHTML=
+"No se pudo abrir cámara";
+
+
+}
+
 
 }
 
 
 
-// =======================================
-// CONECTAR WEBSOCKET
-// =======================================
+
+
+// ===============================
+// WEBSOCKET
+// ===============================
+
 
 function conectar(){
 
 
-    ws = new WebSocket(WS_URL);
+ws=new WebSocket(
+WS_URL
+);
 
 
 
-    ws.onopen = ()=>{
+ws.onopen=()=>{
 
 
-        console.log("WebSocket conectado");
+console.log(
+"WebSocket conectado"
+);
 
 
-        estado.innerHTML="Conectado";
+estado.innerHTML=
+"Modelo conectado";
 
 
-        enviarFrames();
+enviarFrames();
 
 
-    };
-
-
-
-    ws.onmessage = (event)=>{
-
-
-        const data = JSON.parse(event.data);
+};
 
 
 
-        if(data.imagen){
 
 
-            resultado.src =
-            "data:image/jpeg;base64," + data.imagen;
+ws.onmessage=(event)=>{
 
 
-        }
-
-
-
-        if(data.detecciones){
-
-
-            console.log(
-                "Detecciones:",
-                data.detecciones
-            );
-
-
-        }
-
-
-    };
+const data=
+JSON.parse(event.data);
 
 
 
-    ws.onerror = (error)=>{
-
-        console.error(
-            "WebSocket error",
-            error
-        );
-
-    };
+ctx.clearRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
 
 
 
-    ws.onclose = ()=>{
+
+if(data.detecciones){
 
 
-        estado.innerHTML="Reconectando...";
+
+data.detecciones.forEach(det=>{
 
 
-        setTimeout(conectar,2000);
+
+ctx.strokeStyle=
+"#00ff00";
 
 
-    };
+ctx.lineWidth=3;
+
+
+
+ctx.strokeRect(
+
+det.x,
+
+det.y,
+
+det.ancho,
+
+det.alto
+
+);
+
+
+
+ctx.fillStyle=
+"#00ff00";
+
+
+ctx.font=
+"18px Arial";
+
+
+
+ctx.fillText(
+
+det.objeto+
+" "+
+Math.round(det.confianza*100)
++"%",
+
+det.x,
+
+det.y-8
+
+);
+
+
+
+});
+
 
 
 }
 
 
 
-// =======================================
-// ENVIAR FRAMES A YOLO
-// =======================================
+};
+
+
+
+
+
+ws.onclose=()=>{
+
+
+estado.innerHTML=
+"Reconectando...";
+
+
+setTimeout(
+conectar,
+3000
+);
+
+
+};
+
+
+}
+
+
+
+
+
+// ===============================
+// ENVIAR FRAMES
+// ===============================
+
 
 async function enviarFrames(){
 
 
-
-    while(ws.readyState === WebSocket.OPEN){
-
-
-
-        if(video.videoWidth === 0){
-
-
-            await esperar(100);
-
-            continue;
-
-        }
+while(
+ws &&
+ws.readyState===WebSocket.OPEN
+){
 
 
 
-        canvas.width = 640;
+if(video.videoWidth===0){
 
-        canvas.height = 480;
+await esperar(100);
 
+continue;
 
-
-        ctx.drawImage(
-
-            video,
-
-            0,
-
-            0,
-
-            640,
-
-            480
-
-        );
-
-
-
-        const imagen = canvas
-
-            .toDataURL(
-                "image/jpeg",
-                0.7
-            )
-
-            .split(",")[1];
+}
 
 
 
 
-        ws.send(JSON.stringify({
+capturaCtx.drawImage(
 
-            imagen:imagen,
+video,
 
-            umbral:0.55
+0,
 
-        }));
+0,
+
+captura.width,
+
+captura.height
+
+);
 
 
 
-        await esperar(100);
+const imagen =
+captura.toDataURL(
+"image/jpeg",
+0.6
+)
+.split(",")[1];
 
 
 
-    }
+
+
+ws.send(JSON.stringify({
+
+imagen:imagen,
+
+umbral:0.55
+
+
+}));
+
+
+
+await esperar(80);
+
+
+
+}
 
 
 }
 
 
 
-// =======================================
+
 
 function esperar(ms){
 
-    return new Promise(resolve=>{
-
-        setTimeout(resolve,ms);
-
-    });
+return new Promise(
+r=>setTimeout(r,ms)
+);
 
 }
 
 
 
-// =======================================
-// ARRANQUE
-// =======================================
 
 (async()=>{
 
 
-    await iniciarCamara();
+await iniciarCamara();
 
 
-    conectar();
-
+conectar();
 
 
 })();
