@@ -6,6 +6,7 @@ const TAMANO_ENTRADA = 416;
 
 
 const NOMBRES_CLASES = [
+
 "Backpack",
 "Bed",
 "Bottle",
@@ -26,10 +27,11 @@ const NOMBRES_CLASES = [
 "Table",
 "Television",
 "Wok"
+
 ];
 
 
-const UMBRAL = 0.55;
+let UMBRAL = 0.25;
 
 
 
@@ -59,7 +61,9 @@ document.createElement("canvas");
 
 
 captura.width = TAMANO_ENTRADA;
+
 captura.height = TAMANO_ENTRADA;
+
 
 
 const capturaCtx =
@@ -73,11 +77,14 @@ willReadFrequently:true
 
 
 
-// ============================
+
+// =================================
 // CAMARA
-// ============================
+// =================================
+
 
 async function iniciarCamara(){
+
 
 try{
 
@@ -86,6 +93,7 @@ const stream =
 await navigator.mediaDevices.getUserMedia({
 
 video:{
+
 facingMode:{
 ideal:"environment"
 },
@@ -105,11 +113,13 @@ audio:false
 });
 
 
+
 video.srcObject = stream;
 
 
 
 video.onloadedmetadata = ()=>{
+
 
 canvas.width =
 video.videoWidth;
@@ -117,6 +127,7 @@ video.videoWidth;
 
 canvas.height =
 video.videoHeight;
+
 
 };
 
@@ -128,12 +139,13 @@ estado.innerHTML =
 
 }
 
+
 catch(e){
 
 console.error(e);
 
 estado.innerHTML =
-"No se pudo abrir camara";
+"Error camara";
 
 }
 
@@ -143,9 +155,12 @@ estado.innerHTML =
 
 
 
-// ============================
-// MODELO ONNX
-// ============================
+
+
+
+// =================================
+// CARGAR MODELO
+// =================================
 
 
 async function cargarModelo(){
@@ -153,6 +168,7 @@ async function cargarModelo(){
 
 estado.innerHTML =
 "Cargando modelo...";
+
 
 
 sesion =
@@ -178,6 +194,7 @@ sesion.inputNames
 );
 
 
+
 console.log(
 "Salidas:",
 sesion.outputNames
@@ -195,12 +212,15 @@ estado.innerHTML =
 
 
 
-// ============================
-// PREPROCESADO
-// ============================
+
+
+// =================================
+// PREPROCESAR
+// =================================
 
 
 function prepararImagen(){
+
 
 
 const ancho =
@@ -224,16 +244,23 @@ TAMANO_ENTRADA/alto
 
 
 const nuevoAncho =
-Math.round(ancho*escala);
+Math.round(
+ancho*escala
+);
+
 
 
 const nuevoAlto =
-Math.round(alto*escala);
+Math.round(
+alto*escala
+);
+
 
 
 
 capturaCtx.fillStyle =
 "black";
+
 
 
 capturaCtx.fillRect(
@@ -262,7 +289,9 @@ nuevoAlto
 
 
 
-const datos =
+
+
+const pixeles =
 capturaCtx.getImageData(
 
 0,
@@ -278,8 +307,8 @@ TAMANO_ENTRADA
 const entrada =
 new Float32Array(
 
-TAMANO_ENTRADA *
-TAMANO_ENTRADA *
+TAMANO_ENTRADA*
+TAMANO_ENTRADA*
 3
 
 );
@@ -287,28 +316,31 @@ TAMANO_ENTRADA *
 
 
 for(
+
 let i=0,j=0;
 
-i<datos.length;
+i<pixeles.length;
 
 i+=4,j+=3
 
 ){
 
 
+
 entrada[j] =
-datos[i]/255/255;
+pixeles[i]/255/255;
 
 
 entrada[j+1] =
-datos[i+1]/255/255;
+pixeles[i+1]/255/255;
 
 
 entrada[j+2] =
-datos[i+2]/255/255;
+pixeles[i+2]/255/255;
 
 
 }
+
 
 
 
@@ -334,12 +366,132 @@ TAMANO_ENTRADA,
 
 
 
-// ============================
-// DETECCION + DEBUG
-// ============================
+
+
+// =================================
+// IOU PARA NMS
+// =================================
+
+
+function calcularIOU(a,b){
+
+
+const x1 =
+Math.max(a.x1,b.x1);
+
+
+const y1 =
+Math.max(a.y1,b.y1);
+
+
+const x2 =
+Math.min(a.x2,b.x2);
+
+
+const y2 =
+Math.min(a.y2,b.y2);
+
+
+
+const inter =
+Math.max(0,x2-x1) *
+Math.max(0,y2-y1);
+
+
+
+const areaA =
+(a.x2-a.x1)*
+(a.y2-a.y1);
+
+
+
+const areaB =
+(b.x2-b.x1)*
+(b.y2-b.y1);
+
+
+
+return inter /
+(areaA+areaB-inter+0.0001);
+
+
+}
+
+
+
+
+function aplicarNMS(detecciones){
+
+
+detecciones.sort(
+(a,b)=>
+b.confianza-a.confianza
+);
+
+
+
+const resultado=[];
+
+
+
+for(
+const det of detecciones
+){
+
+
+
+let eliminar=false;
+
+
+
+for(
+const r of resultado
+){
+
+
+if(
+det.clase===r.clase &&
+calcularIOU(det,r)>0.4
+){
+
+eliminar=true;
+
+break;
+
+}
+
+
+}
+
+
+
+if(!eliminar)
+resultado.push(det);
+
+
+
+}
+
+
+
+return resultado;
+
+
+}
+
+
+
+
+
+
+
+// =================================
+// DETECTAR
+// =================================
 
 
 async function detectar(){
+
 
 
 const tensor =
@@ -361,97 +513,28 @@ await sesion.run({
 
 
 
-const rawBoxes =
+const boxes =
 salida.boxes.data;
 
 
-const rawClasses =
+
+const classes =
 salida.classes.data;
 
 
 
-// ======================
-// DEBUG TEMPORAL
-// ======================
-
-
-console.log(
-"BOX DIMS:",
-salida.boxes.dims
-);
-
-
-console.log(
-"CLASS DIMS:",
-salida.classes.dims
-);
-
-
-
-console.log(
-"PRIMERAS BOX:",
-Array.from(
-rawBoxes.slice(0,20)
-)
-);
-
-
-
-console.log(
-"PRIMERAS CLASS:",
-Array.from(
-rawClasses.slice(0,40)
-)
-);
-
-
-
-
-// ======================
-// DIBUJO
-// ======================
-
-
-ctx.clearRect(
-
-0,
-0,
-
-canvas.width,
-canvas.height
-
-);
-
-
-
-const cantidadBoxes =
-rawBoxes.length / 4;
-
-
-const cantidadClases =
-rawClasses.length /
-NOMBRES_CLASES.length;
-
-
-
-console.log(
-"Boxes:",
-cantidadBoxes,
-"Clases:",
-cantidadClases
-);
-
-
 
 const cantidad =
-Math.min(
-cantidadBoxes,
-cantidadClases
-);
+salida.boxes.dims[1];
+
+
+
+let detecciones=[];
 
 
 
 for(
+
 let i=0;
 
 i<cantidad;
@@ -461,6 +544,19 @@ i++
 ){
 
 
+
+const boxOffset =
+i*64;
+
+
+
+const classOffset =
+i*20;
+
+
+
+
+
 let mejorClase=-1;
 
 let confianza=0;
@@ -468,18 +564,20 @@ let confianza=0;
 
 
 for(
+
 let c=0;
 
-c<NOMBRES_CLASES.length;
+c<20;
 
 c++
 
 ){
 
 
+
 const score =
-rawClasses[
-i*NOMBRES_CLASES.length+c
+classes[
+classOffset+c
 ];
 
 
@@ -497,36 +595,130 @@ mejorClase=c;
 
 
 
+
 if(confianza < UMBRAL)
 continue;
 
 
 
 
+
+
+// formato cx cy w h
+let cx =
+boxes[boxOffset];
+
+
+let cy =
+boxes[boxOffset+1];
+
+
+let w =
+boxes[boxOffset+2];
+
+
+let h =
+boxes[boxOffset+3];
+
+
+
+
+
 let x1 =
-rawBoxes[i*4];
+cx-w/2;
 
 
 let y1 =
-rawBoxes[i*4+1];
+cy-h/2;
 
 
 let x2 =
-rawBoxes[i*4+2];
+cx+w/2;
 
 
 let y2 =
-rawBoxes[i*4+3];
+cy+h/2;
 
 
 
 
-x1 *= canvas.width;
-x2 *= canvas.width;
 
-y1 *= canvas.height;
-y2 *= canvas.height;
+// pasar 416 a pantalla
 
+x1 =
+x1/TAMANO_ENTRADA*
+canvas.width;
+
+
+x2 =
+x2/TAMANO_ENTRADA*
+canvas.width;
+
+
+
+y1 =
+y1/TAMANO_ENTRADA*
+canvas.height;
+
+
+y2 =
+y2/TAMANO_ENTRADA*
+canvas.height;
+
+
+
+
+
+detecciones.push({
+
+x1,
+
+y1,
+
+x2,
+
+y2,
+
+clase:mejorClase,
+
+confianza
+
+});
+
+
+}
+
+
+
+
+
+detecciones =
+aplicarNMS(detecciones);
+
+
+
+
+
+
+ctx.clearRect(
+
+0,
+
+0,
+
+canvas.width,
+
+canvas.height
+
+);
+
+
+
+
+
+for(
+const d of detecciones
+){
 
 
 
@@ -538,15 +730,16 @@ ctx.lineWidth =
 3;
 
 
+
 ctx.strokeRect(
 
-x1,
+d.x1,
 
-y1,
+d.y1,
 
-x2-x1,
+d.x2-d.x1,
 
-y2-y1
+d.y2-d.y1
 
 );
 
@@ -560,19 +753,20 @@ ctx.font =
 "18px Arial";
 
 
+
 ctx.fillText(
 
-NOMBRES_CLASES[mejorClase]
+NOMBRES_CLASES[d.clase]
 +
 " "
 +
-Math.round(confianza*100)
+Math.round(d.confianza*100)
 +
 "%",
 
-x1,
+d.x1,
 
-y1-8
+d.y1-8
 
 );
 
@@ -588,15 +782,19 @@ y1-8
 
 
 
-// ============================
+
+
+
+// =================================
 // LOOP
-// ============================
+// =================================
 
 
 async function bucle(){
 
 
 while(true){
+
 
 
 if(
@@ -614,7 +812,7 @@ await detectar();
 catch(e){
 
 console.error(
-"Error deteccion:",
+"Error:",
 e
 );
 
@@ -627,7 +825,7 @@ e
 
 await new Promise(
 
-r=>setTimeout(r,150)
+r=>setTimeout(r,100)
 
 );
 
@@ -642,9 +840,11 @@ r=>setTimeout(r,150)
 
 
 
-// ============================
+
+
+// =================================
 // INICIO
-// ============================
+// =================================
 
 
 (async()=>{
