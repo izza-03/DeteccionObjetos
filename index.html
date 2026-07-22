@@ -1,52 +1,195 @@
 <!DOCTYPE html>
-<html lang="es">
-
+<html>
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>ESCANEO IA</title>
 
-<link rel="stylesheet" href="style.css">
+<style>
+
+body{
+    background:#111;
+    color:white;
+    font-family:Arial;
+    text-align:center;
+}
+
+video,canvas,img{
+    width:640px;
+    border-radius:10px;
+}
+
+#detecciones{
+    margin-top:20px;
+    font-size:20px;
+}
+
+</style>
 
 </head>
-
 
 <body>
 
 
-<h1>ESCANEO tiempo real</h1>
+<h1>ESCANEO IA</h1>
 
 
-<div class="visor">
+<video id="camara" autoplay playsinline></video>
 
-    <video 
-        id="video"
-        autoplay
-        playsinline
-        muted>
-    </video>
+<br>
 
-
-    <canvas id="canvas"></canvas>
+<button onclick="iniciar()">
+Iniciar cámara
+</button>
 
 
-</div>
+<h2>Resultado</h2>
+
+<img id="resultado">
 
 
-<p id="estado">
-Iniciando...
-</p>
+<div id="detecciones"></div>
 
 
 
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<script>
 
-<script src="script.js"></script>
+
+let video=document.getElementById("camara");
+let resultado=document.getElementById("resultado");
+
+let canvas=document.createElement("canvas");
+
+let ws;
+
+
+
+async function iniciar(){
+
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+
+        video:{
+            width:640,
+            height:480
+        }
+
+    });
+
+
+    video.srcObject=stream;
+
+
+
+    ws=new WebSocket(
+        "ws://localhost:8000/camara"
+    );
+
+
+
+    ws.onmessage=function(event){
+
+
+        let data=JSON.parse(
+            event.data
+        );
+
+
+        resultado.src =
+            "data:image/jpeg;base64,"+
+            data.imagen;
+
+
+
+        let texto="";
+
+
+        data.detecciones.forEach(d=>{
+
+            texto +=
+            d.objeto+
+            " "+
+            d.confianza+
+            "<br>";
+
+        });
+
+
+        document.getElementById(
+            "detecciones"
+        ).innerHTML=texto;
+
+
+    };
+
+
+
+    enviarFrames();
+
+}
+
+
+
+function enviarFrames(){
+
+
+    if(!ws || ws.readyState!==1){
+
+        setTimeout(
+            enviarFrames,
+            500
+        );
+
+        return;
+    }
+
+
+
+    canvas.width=640;
+    canvas.height=480;
+
+
+    let ctx=canvas.getContext("2d");
+
+
+    ctx.drawImage(
+        video,
+        0,
+        0,
+        640,
+        480
+    );
+
+
+
+    let imagen =
+        canvas.toDataURL(
+            "image/jpeg",
+            0.7
+        )
+        .split(",")[1];
+
+
+
+    ws.send(JSON.stringify({
+
+        imagen:imagen,
+
+        umbral:0.1
+
+    }));
+
+
+
+    setTimeout(
+        enviarFrames,
+        200
+    );
+
+}
+
+
+</script>
 
 
 </body>
-
 </html>
