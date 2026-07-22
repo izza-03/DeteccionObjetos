@@ -205,7 +205,7 @@ async function enviarFrames(){
 
             imagen: imagen,
 
-            umbral:0.55
+            umbral:0.30
 
         }));
 
