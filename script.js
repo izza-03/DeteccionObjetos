@@ -7,6 +7,7 @@ En tu index.html, ANTES de esta línea <script src="script.js">,
 agrega:
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 */
+
 const RUTA_MODELO = "https://huggingface.co/eliii03/Objeto/resolve/main/modelo_v2_convertido.onnx";
 const TAMANO_ENTRADA = 416;
 const NOMBRES_CLASES = [
@@ -141,20 +142,21 @@ async function detectar() {
   const nombreEntrada = sesion.inputNames[0];
   const salida = await sesion.run({ [nombreEntrada]: tensor });
 
-  // Si ves errores o resultados sin sentido, revisa en la consola:
-  // console.log(sesion.outputNames) — puede que el orden real de las
-  // salidas no coincida con [0]=boxes, [1]=scores. Ajusta aquí si hace falta.
-  const nombresSalida = sesion.outputNames;
-  const rawBoxes = salida[nombresSalida[0]].data;   // [N, 4] rel_xyxy
-  const rawScores = salida[nombresSalida[1]].data;  // [N, 20] por clase
+  // decode_predictions de Keras-CV usa un Op (Bitcast) que ONNX Runtime Web
+  // no soporta, así que exportamos el modelo SIN decodificar: "boxes" trae
+  // una caja por cada ancla (miles), y "classes" trae el score de cada una
+  // de las 20 clases para esa misma ancla. Hacemos el argmax de clase y el
+  // NMS nosotros mismos, aquí en JS.
+  const rawBoxes = salida["boxes"].data;     // [num_anclas, 4] rel_xyxy
+  const rawClasses = salida["classes"].data; // [num_anclas, 20] score por clase
 
-  const n = rawScores.length / NOMBRES_CLASES.length;
+  const numAnclas = rawClasses.length / NOMBRES_CLASES.length;
   const cajas = [], confianzas = [], clases = [];
 
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < numAnclas; i++) {
     let mejorClase = -1, mejorScore = 0;
     for (let c = 0; c < NOMBRES_CLASES.length; c++) {
-      const score = rawScores[i * NOMBRES_CLASES.length + c];
+      const score = rawClasses[i * NOMBRES_CLASES.length + c];
       if (score > mejorScore) { mejorScore = score; mejorClase = c; }
     }
     if (mejorScore >= UMBRAL_CONFIANZA) {
