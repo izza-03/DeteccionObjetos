@@ -22,18 +22,6 @@ margin-top:20px;
 
 
 
-.contenedor{
-
-display:flex;
-
-justify-content:center;
-
-align-items:center;
-
-}
-
-
-
 .visor{
 
 position:relative;
@@ -41,6 +29,8 @@ position:relative;
 width:640px;
 
 max-width:95%;
+
+margin:auto;
 
 }
 
@@ -82,8 +72,8 @@ pointer-events:none;
 
 margin-top:20px;
 
-color:#00ff88;
-
 font-size:18px;
+
+color:#00ff88;
 
 }
