@@ -7,8 +7,7 @@ En tu index.html, ANTES de esta línea <script src="script.js">,
 agrega:
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 */
-
-const RUTA_MODELO = "https://huggingface.co/eliii03/Detector_de_objetos/resolve/main/modelo_v2.onnx";
+const RUTA_MODELO = "https://huggingface.co/eliii03/Objeto/resolve/main/modelo_v2.onnx";
 const TAMANO_ENTRADA = 416;
 const NOMBRES_CLASES = [
   "Backpack", "Bed", "Bottle", "Chair", "Couch", "Door", "Fork", "Glass",
