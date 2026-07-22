@@ -47,12 +47,13 @@ const ctx =
 canvas.getContext("2d");
 
 
+
 const estado =
 document.getElementById("estado");
 
 
 
-let modelo=null;
+let sesion=null;
 
 
 
@@ -65,16 +66,22 @@ captura.width=TAMANO_ENTRADA;
 captura.height=TAMANO_ENTRADA;
 
 
+
 const capturaCtx =
-captura.getContext("2d");
+captura.getContext(
+"2d",
+{
+willReadFrequently:true
+}
+);
 
 
 
 
 
-// ===============================
+// ==========================
 // CAMARA
-// ===============================
+// ==========================
 
 
 async function iniciarCamara(){
@@ -101,7 +108,6 @@ ideal:480
 
 audio:false
 
-
 });
 
 
@@ -113,11 +119,11 @@ video.srcObject=stream;
 video.onloadedmetadata=()=>{
 
 
-canvas.width=
+canvas.width =
 video.videoWidth;
 
 
-canvas.height=
+canvas.height =
 video.videoHeight;
 
 
@@ -129,16 +135,16 @@ estado.innerHTML=
 "Camara activa";
 
 
+
 }
 
 
 
 
 
-
-// ===============================
-// CARGAR MODELO
-// ===============================
+// ==========================
+// MODELO
+// ==========================
 
 
 async function cargarModelo(){
@@ -148,7 +154,8 @@ estado.innerHTML=
 "Cargando modelo...";
 
 
-modelo =
+
+sesion =
 await ort.InferenceSession.create(
 
 RUTA_MODELO,
@@ -167,13 +174,13 @@ executionProviders:[
 
 console.log(
 "Entradas:",
-modelo.inputNames
+sesion.inputNames
 );
 
 
 console.log(
 "Salidas:",
-modelo.outputNames
+sesion.outputNames
 );
 
 
@@ -188,9 +195,9 @@ estado.innerHTML=
 
 
 
-// ===============================
-// PREPROCESADO
-// ===============================
+// ==========================
+// PREPARAR IMAGEN
+// ==========================
 
 
 function prepararImagen(){
@@ -218,11 +225,15 @@ TAMANO_ENTRADA/alto
 
 
 const nuevoAncho =
-Math.round(ancho*escala);
+Math.round(
+ancho*escala
+);
 
 
 const nuevoAlto =
-Math.round(alto*escala);
+Math.round(
+alto*escala
+);
 
 
 
@@ -233,6 +244,7 @@ capturaCtx.fillRect(
 
 0,
 0,
+
 TAMANO_ENTRADA,
 TAMANO_ENTRADA
 
@@ -254,7 +266,6 @@ nuevoAlto
 
 
 
-
 const datos =
 capturaCtx.getImageData(
 
@@ -268,7 +279,7 @@ TAMANO_ENTRADA
 
 
 
-const entrada =
+const tensor =
 new Float32Array(
 
 TAMANO_ENTRADA*
@@ -289,46 +300,36 @@ i+=4,j+=3
 ){
 
 
-entrada[j]=datos[i]/255/255;
+tensor[j]=
+datos[i]/255/255;
 
 
-entrada[j+1]=datos[i+1]/255/255;
+tensor[j+1]=
+datos[i+1]/255/255;
 
 
-entrada[j+2]=datos[i+2]/255/255;
+tensor[j+2]=
+datos[i+2]/255/255;
 
 
 }
 
 
 
-return {
-
-
-tensor:new ort.Tensor(
+return new ort.Tensor(
 
 "float32",
 
-entrada,
+tensor,
 
 [
-
 1,
-
 TAMANO_ENTRADA,
-
 TAMANO_ENTRADA,
-
 3
-
 ]
 
-),
-
-
-escala
-
-};
+);
 
 
 }
@@ -337,69 +338,81 @@ escala
 
 
 
-// ===============================
+// ==========================
 // DETECCION
-// ===============================
+// ==========================
 
 
 async function detectar(){
 
 
 
-const datos =
+const tensor =
 prepararImagen();
 
 
 
 const entrada =
-modelo.inputNames[0];
+sesion.inputNames[0];
 
 
 
 const salida =
-await modelo.run({
+await sesion.run({
 
-[entrada]:
-datos.tensor
+[entrada]:tensor
 
 });
 
 
 
+const rawBoxes =
+salida.boxes.data;
 
-console.log(salida);
+
+const rawClasses =
+salida.classes.data;
+
+
+
+const cantidadBoxes =
+rawBoxes.length/4;
+
+
+const cantidadClases =
+rawClasses.length/
+NOMBRES_CLASES.length;
+
+
+
+const cantidad =
+Math.min(
+cantidadBoxes,
+cantidadClases
+);
+
+
+
+console.log(
+"Boxes:",
+cantidadBoxes,
+"Clases:",
+cantidadClases
+);
 
 
 
 ctx.clearRect(
 
 0,
-
 0,
 
 canvas.width,
-
 canvas.height
 
 );
 
 
-
-
-// Aquí se leen las salidas ONNX
-
-const boxes =
-salida.boxes.data;
-
-
-const classes =
-salida.classes.data;
-
-
-
-const cantidad =
-classes.length /
-NOMBRES_CLASES.length;
 
 
 
@@ -414,9 +427,9 @@ i++
 
 
 
-let mejor=-1;
+let mejorClase=-1;
 
-let score=0;
+let confianza=0;
 
 
 
@@ -430,50 +443,70 @@ c++
 ){
 
 
-let valor =
-classes[
+
+const score =
+rawClasses[
 i*NOMBRES_CLASES.length+c
 ];
 
 
-if(valor>score){
 
-score=valor;
+if(score>confianza){
 
-mejor=c;
+confianza=score;
 
-}
-
+mejorClase=c;
 
 }
 
 
+}
 
 
-if(score<UMBRAL)
+
+
+if(confianza<UMBRAL)
 continue;
 
 
 
-const x1 =
-boxes[i*4];
+
+let x1 =
+rawBoxes[i*4];
 
 
-const y1 =
-boxes[i*4+1];
+let y1 =
+rawBoxes[i*4+1];
 
 
-const x2 =
-boxes[i*4+2];
+let x2 =
+rawBoxes[i*4+2];
 
 
-const y2 =
-boxes[i*4+3];
+let y2 =
+rawBoxes[i*4+3];
 
 
 
 
-ctx.strokeStyle="#00ff00";
+
+// convertir 0-1 a pantalla
+
+x1 *= canvas.width;
+
+y1 *= canvas.height;
+
+x2 *= canvas.width;
+
+y2 *= canvas.height;
+
+
+
+
+
+ctx.strokeStyle=
+"#00ff00";
+
 
 ctx.lineWidth=3;
 
@@ -493,20 +526,25 @@ y2-y1
 
 
 
-ctx.fillStyle="#00ff00";
+ctx.fillStyle=
+"#00ff00";
 
-ctx.font="18px Arial";
+
+ctx.font=
+"18px Arial";
+
 
 
 ctx.fillText(
 
-NOMBRES_CLASES[mejor]+
-" "+
-Math.round(score*100)+"%",
+NOMBRES_CLASES[mejorClase]
++" "+
+Math.round(confianza*100)
++"%",
 
 x1,
 
-y1-5
+y1-8
 
 );
 
@@ -516,38 +554,40 @@ y1-5
 
 
 
-
 }
 
 
 
 
 
+// ==========================
+// LOOP
+// ==========================
 
 
 async function bucle(){
 
 
-
 while(true){
 
 
-if(modelo &&
-video.videoWidth>0){
+
+if(
+sesion &&
+video.videoWidth>0
+){
 
 
 try{
 
-
 await detectar();
-
 
 }
 
 catch(e){
 
 console.error(
-"Error detección",
+"Error:",
 e
 );
 
@@ -569,16 +609,15 @@ r=>setTimeout(r,100)
 }
 
 
-
 }
 
 
 
 
 
-// ===============================
-// INICIO
-// ===============================
+// ==========================
+// START
+// ==========================
 
 
 (async()=>{
