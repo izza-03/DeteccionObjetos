@@ -6,7 +6,6 @@ const TAMANO_ENTRADA = 416;
 
 
 const NOMBRES_CLASES = [
-
 "Backpack",
 "Bed",
 "Bottle",
@@ -27,7 +26,6 @@ const NOMBRES_CLASES = [
 "Table",
 "Television",
 "Wok"
-
 ];
 
 
@@ -47,13 +45,12 @@ const ctx =
 canvas.getContext("2d");
 
 
-
 const estado =
 document.getElementById("estado");
 
 
 
-let sesion=null;
+let sesion = null;
 
 
 
@@ -61,10 +58,8 @@ const captura =
 document.createElement("canvas");
 
 
-captura.width=TAMANO_ENTRADA;
-
-captura.height=TAMANO_ENTRADA;
-
+captura.width = TAMANO_ENTRADA;
+captura.height = TAMANO_ENTRADA;
 
 
 const capturaCtx =
@@ -78,20 +73,19 @@ willReadFrequently:true
 
 
 
-
-// ==========================
+// ============================
 // CAMARA
-// ==========================
-
+// ============================
 
 async function iniciarCamara(){
+
+try{
 
 
 const stream =
 await navigator.mediaDevices.getUserMedia({
 
 video:{
-
 facingMode:{
 ideal:"environment"
 },
@@ -111,13 +105,11 @@ audio:false
 });
 
 
-
-video.srcObject=stream;
-
+video.srcObject = stream;
 
 
-video.onloadedmetadata=()=>{
 
+video.onloadedmetadata = ()=>{
 
 canvas.width =
 video.videoWidth;
@@ -126,14 +118,24 @@ video.videoWidth;
 canvas.height =
 video.videoHeight;
 
-
 };
 
 
 
-estado.innerHTML=
+estado.innerHTML =
 "Camara activa";
 
+
+}
+
+catch(e){
+
+console.error(e);
+
+estado.innerHTML =
+"No se pudo abrir camara";
+
+}
 
 
 }
@@ -141,18 +143,16 @@ estado.innerHTML=
 
 
 
-
-// ==========================
-// MODELO
-// ==========================
+// ============================
+// MODELO ONNX
+// ============================
 
 
 async function cargarModelo(){
 
 
-estado.innerHTML=
+estado.innerHTML =
 "Cargando modelo...";
-
 
 
 sesion =
@@ -185,7 +185,7 @@ sesion.outputNames
 
 
 
-estado.innerHTML=
+estado.innerHTML =
 "Modelo listo";
 
 
@@ -195,13 +195,12 @@ estado.innerHTML=
 
 
 
-// ==========================
-// PREPARAR IMAGEN
-// ==========================
+// ============================
+// PREPROCESADO
+// ============================
 
 
 function prepararImagen(){
-
 
 
 const ancho =
@@ -225,19 +224,16 @@ TAMANO_ENTRADA/alto
 
 
 const nuevoAncho =
-Math.round(
-ancho*escala
-);
+Math.round(ancho*escala);
 
 
 const nuevoAlto =
-Math.round(
-alto*escala
-);
+Math.round(alto*escala);
 
 
 
-capturaCtx.fillStyle="black";
+capturaCtx.fillStyle =
+"black";
 
 
 capturaCtx.fillRect(
@@ -279,11 +275,11 @@ TAMANO_ENTRADA
 
 
 
-const tensor =
+const entrada =
 new Float32Array(
 
-TAMANO_ENTRADA*
-TAMANO_ENTRADA*
+TAMANO_ENTRADA *
+TAMANO_ENTRADA *
 3
 
 );
@@ -300,15 +296,15 @@ i+=4,j+=3
 ){
 
 
-tensor[j]=
+entrada[j] =
 datos[i]/255/255;
 
 
-tensor[j+1]=
+entrada[j+1] =
 datos[i+1]/255/255;
 
 
-tensor[j+2]=
+entrada[j+2] =
 datos[i+2]/255/255;
 
 
@@ -320,7 +316,7 @@ return new ort.Tensor(
 
 "float32",
 
-tensor,
+entrada,
 
 [
 1,
@@ -338,13 +334,12 @@ TAMANO_ENTRADA,
 
 
 
-// ==========================
-// DETECCION
-// ==========================
+// ============================
+// DETECCION + DEBUG
+// ============================
 
 
 async function detectar(){
-
 
 
 const tensor =
@@ -375,31 +370,46 @@ salida.classes.data;
 
 
 
-const cantidadBoxes =
-rawBoxes.length/4;
+// ======================
+// DEBUG TEMPORAL
+// ======================
 
 
-const cantidadClases =
-rawClasses.length/
-NOMBRES_CLASES.length;
+console.log(
+"BOX DIMS:",
+salida.boxes.dims
+);
 
 
-
-const cantidad =
-Math.min(
-cantidadBoxes,
-cantidadClases
+console.log(
+"CLASS DIMS:",
+salida.classes.dims
 );
 
 
 
 console.log(
-"Boxes:",
-cantidadBoxes,
-"Clases:",
-cantidadClases
+"PRIMERAS BOX:",
+Array.from(
+rawBoxes.slice(0,20)
+)
 );
 
+
+
+console.log(
+"PRIMERAS CLASS:",
+Array.from(
+rawClasses.slice(0,40)
+)
+);
+
+
+
+
+// ======================
+// DIBUJO
+// ======================
 
 
 ctx.clearRect(
@@ -414,6 +424,31 @@ canvas.height
 
 
 
+const cantidadBoxes =
+rawBoxes.length / 4;
+
+
+const cantidadClases =
+rawClasses.length /
+NOMBRES_CLASES.length;
+
+
+
+console.log(
+"Boxes:",
+cantidadBoxes,
+"Clases:",
+cantidadClases
+);
+
+
+
+const cantidad =
+Math.min(
+cantidadBoxes,
+cantidadClases
+);
+
 
 
 for(
@@ -424,7 +459,6 @@ i<cantidad;
 i++
 
 ){
-
 
 
 let mejorClase=-1;
@@ -441,7 +475,6 @@ c<NOMBRES_CLASES.length;
 c++
 
 ){
-
 
 
 const score =
@@ -464,8 +497,7 @@ mejorClase=c;
 
 
 
-
-if(confianza<UMBRAL)
+if(confianza < UMBRAL)
 continue;
 
 
@@ -489,27 +521,21 @@ rawBoxes[i*4+3];
 
 
 
-
-// convertir 0-1 a pantalla
-
 x1 *= canvas.width;
-
-y1 *= canvas.height;
-
 x2 *= canvas.width;
 
+y1 *= canvas.height;
 y2 *= canvas.height;
 
 
 
 
-
-ctx.strokeStyle=
+ctx.strokeStyle =
 "#00ff00";
 
 
-ctx.lineWidth=3;
-
+ctx.lineWidth =
+3;
 
 
 ctx.strokeRect(
@@ -526,21 +552,23 @@ y2-y1
 
 
 
-ctx.fillStyle=
+ctx.fillStyle =
 "#00ff00";
 
 
-ctx.font=
+ctx.font =
 "18px Arial";
-
 
 
 ctx.fillText(
 
 NOMBRES_CLASES[mejorClase]
-+" "+
++
+" "
++
 Math.round(confianza*100)
-+"%",
++
+"%",
 
 x1,
 
@@ -560,16 +588,15 @@ y1-8
 
 
 
-// ==========================
+// ============================
 // LOOP
-// ==========================
+// ============================
 
 
 async function bucle(){
 
 
 while(true){
-
 
 
 if(
@@ -587,7 +614,7 @@ await detectar();
 catch(e){
 
 console.error(
-"Error:",
+"Error deteccion:",
 e
 );
 
@@ -600,7 +627,7 @@ e
 
 await new Promise(
 
-r=>setTimeout(r,100)
+r=>setTimeout(r,150)
 
 );
 
@@ -615,9 +642,9 @@ r=>setTimeout(r,100)
 
 
 
-// ==========================
-// START
-// ==========================
+// ============================
+// INICIO
+// ============================
 
 
 (async()=>{
